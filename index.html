@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <title>Permainan Web Crawler - Jelajah Malaysia</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f0f4f8;
+      padding: 20px;
+      text-align: center;
+      color: #2c3e50;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 25px;
+      border-radius: 16px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.1);
+    }
+
+    h1 {
+      color: #2c3e50;
+      margin-bottom: 5px;
+    }
+
+    .subtitle {
+      color: #555;
+      font-size: 1em;
+      margin-bottom: 15px;
+    }
+
+    /* Gaya Gambar Petunjuk */
+    .map-img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 12px;
+      border: 3px solid #3498db;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+
+    .btn {
+      display: inline-block;
+      background-color: #3498db;
+      color: white;
+      padding: 12px 20px;
+      margin: 8px 5px;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: bold;
+      font-size: 1em;
+      transition: all 0.2s;
+      cursor: pointer;
+      border: none;
+    }
+
+    .btn:hover {
+      background-color: #2980b9;
+      transform: translateY(-2px);
+    }
+
+    .btn-disabled {
+      background-color: #95a5a6 !important;
+      cursor: not-allowed;
+      opacity: 0.7;
+    }
+
+    .btn-reset {
+      background-color: #e74c3c;
+      margin-top: 15px;
+    }
+
+    .btn-reset:hover {
+      background-color: #c0392b;
+    }
+
+    .status-box {
+      background-color: #eef2f7;
+      padding: 15px;
+      border-radius: 10px;
+      margin-top: 20px;
+      font-weight: 500;
+    }
+
+    .badge {
+      background-color: #2ecc71;
+      color: white;
+      padding: 5px 10px;
+      border-radius: 20px;
+      font-size: 0.9em;
+      margin: 3px;
+      display: inline-block;
+    }
+
+    .win-message {
+      color: #27ae60;
+      font-weight: bold;
+      font-size: 1.2em;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>🕷️ Permainan Web Crawler</h1>
+    <p class="subtitle">Rujuk peta di bawah! Cari jalan untuk melawat <strong>SEMUA LOKASI (A, B, C, D, E, G)</strong> sebelum ke penamat <strong>F (Kepok Lekor Terengganu)</strong>.</p>
+
+    <!-- Peta Petunjuk -->
+    <img src="laluan_web_crawler.jpg" alt="Peta Petunjuk Laluan Web Crawler" class="map-img">
+
+    <hr style="border: 0; border-top: 2px dashed #cbd5e1; margin: 20px 0;">
+
+    <!-- Paparan Halaman Web Aktif -->
+    <h2 id="page-title">Halaman Sekarang: <span style="color:#3498db;">[A] Pasar Seni</span></h2>
+    <p id="page-desc">Laman web permulaan. Rujuk peta dan pilih pautan untuk meneroka laluan!</p>
+
+    <!-- Pautan Hyperlink (Butang Pilihan) -->
+    <div id="links-container"></div>
+
+    <!-- Kotak Sejarah Crawler -->
+    <div class="status-box">
+      <p>📍 <strong>Kemajuan Lokasi Dilawati (<span id="count-visited">1</span>/7):</strong><br><br>
+         <span id="visited-list"></span>
+      </p>
+      <p id="game-status" style="color:#d35400;">⚠️ Lawati semua lokasi terlebih dahulu!</p>
+      <button class="btn btn-reset" onclick="resetGame()">Mula Semula 🔄</button>
+    </div>
+  </div>
+
+  <script>
+    // Data Rangkaian Graf mengikut Peta Gambar Petunjuk
+    const webGraph = {
+      'A': { title: '[A] Pasar Seni', desc: 'Pusat permulaan web crawler.', links: [['B', 'Menara KLCC'], ['C', 'Kota A. Famosa'], ['D', 'Genting Highland']] },
+      'B': { title: '[B] Menara KLCC', desc: 'Halaman Menara KLCC.', links: [['A', 'Pasar Seni'], ['F', 'Kepok Lekor Terengganu']] },
+      'C': { title: '[C] Kota A. Famosa', desc: 'Halaman Kota A. Famosa.', links: [['A', 'Pasar Seni'], ['D', 'Genting Highland']] },
+      'D': { title: '[D] Genting Highland', desc: 'Halaman Genting Highland.', links: [['A', 'Pasar Seni'], ['C', 'Kota A. Famosa'], ['E', 'Gunung Kinabalu'], ['F', 'Kepok Lekor Terengganu']] },
+      'E': { title: '[E] Gunung Kinabalu', desc: 'Halaman Gunung Kinabalu.', links: [['D', 'Genting Highland'], ['G', 'Akuarium']] },
+      'G': { title: '[G] Akuarium', desc: 'Halaman Akuarium.', links: [['E', 'Gunung Kinabalu'], ['F', 'Kepok Lekor Terengganu']] },
+      'F': { title: '[F] Kepok Lekor Terengganu', desc: '🎉 TAHNIAH! Anda telah berjaya melawat SEMUA lokasi dan sampai ke destinasi penamat!', links: [] }
+    };
+
+    const allRequiredNodes = ['A', 'B', 'C', 'D', 'E', 'G'];
+    let visitedSet = new Set(['A']);
+
+    function visitNode(nodeKey) {
+      if (nodeKey === 'F' && !checkAllVisited()) {
+        alert("🔒 Akses Ditolak! Anda mesti melawat semua lokasi (A, B, C, D, E, G) terlebih dahulu!");
+        return;
+      }
+
+      visitedSet.add(nodeKey);
+      const nodeData = webGraph[nodeKey];
+
+      // Kemaskini Tajuk & Keterangan
+      document.getElementById('page-title').innerHTML = `Halaman Sekarang: <span style="color:#3498db;">${nodeData.title}</span>`;
+      document.getElementById('page-desc').innerText = nodeData.desc;
+
+      // Kemaskini Pautan Keluar
+      const container = document.getElementById('links-container');
+      container.innerHTML = '';
+
+      if (nodeKey === 'F') {
+        container.innerHTML = '<p class="win-message">🏆 MISI LENGKAP! Web Crawler berjaya melawat semua 7 lokasi!</p>';
+      } else {
+        nodeData.links.forEach(link => {
+          const targetNode = link[0];
+          const btn = document.createElement('button');
+          
+          if (targetNode === 'F' && !checkAllVisited()) {
+            btn.className = 'btn btn-disabled';
+            btn.innerText = `🔒 [F] Kepok Lekor Terengganu (Kunci)`;
+            btn.onclick = () => { 
+              alert("🔒 Pautan ke F dikunci! Lawati lokasi lain dulu mengikut peta."); 
+            };
+          } else {
+            btn.className = 'btn';
+            btn.innerText = `➔ Pergi ke [${targetNode}] ${link[1]}`;
+            btn.onclick = () => { visitNode(targetNode); };
+          }
+          
+          container.appendChild(btn);
+        });
+      }
+
+      updateVisitedUI();
+    }
+
+    function checkAllVisited() {
+      return allRequiredNodes.every(node => visitedSet.has(node));
+    }
+
+    function updateVisitedUI() {
+      document.getElementById('count-visited').innerText = visitedSet.size;
+      const listContainer = document.getElementById('visited-list');
+      
+      listContainer.innerHTML = Array.from(visitedSet)
+        .map(n => `<span class="badge">${n} - ${webGraph[n].title.split('] ')[1]}</span>`)
+        .join(' ');
+
+      const statusElem = document.getElementById('game-status');
+      if (visitedSet.has('F')) {
+        statusElem.innerHTML = '<strong class="win-message">🎉 Misi Selesai Secara Sempurna!</strong>';
+      } else if (checkAllVisited()) {
+        statusElem.innerHTML = '<strong style="color:#2ecc71;">🔓 Pautan ke F kini terbuka! Anda boleh ke Kepok Lekor Terengganu sekarang.</strong>';
+      } else {
+        const remaining = allRequiredNodes.filter(n => !visitedSet.has(n));
+        statusElem.innerHTML = `⚠️ Belum dilawati: <strong>${remaining.join(', ')}</strong>`;
+      }
+    }
+
+    function resetGame() {
+      visitedSet = new Set(['A']);
+      visitNode('A');
+    }
+
+    // Mula permainan
+    resetGame();
+  </script>
+
+</body>
+</html>
